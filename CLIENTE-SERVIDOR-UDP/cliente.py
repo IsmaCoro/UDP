@@ -6,7 +6,7 @@ import time
 
 # Cambia localhost por la IP de la máquina donde se ejecuta el servidor
 # Por ejemplo: ("192.168.1.5", 10000)
-UDP_SERVER = ("10.246.81.230s", 10000)
+UDP_SERVER = ("192.168.43.203", 10000)
 
 # Establecer un nombre de usuario predeterminado para la consola
 username = "CMD"

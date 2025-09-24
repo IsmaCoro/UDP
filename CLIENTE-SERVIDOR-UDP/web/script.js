@@ -15,7 +15,7 @@ function connectWebSocket() {
     status.style.color = "orange";
     
     
-    ws = new WebSocket("ws://10.246.81.230:8765");
+    ws = new WebSocket("ws://192.168.43.203:8765");
     
     // Eventos WebSocket
     ws.onopen = () => {
