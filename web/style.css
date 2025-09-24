@@ -24,7 +24,6 @@ body {
     overflow: hidden;
 }
 
-/* Login Screen */
 .login-box {
     padding: 40px;
     text-align: center;
@@ -71,7 +70,6 @@ body {
     transform: translateY(-2px);
 }
 
-/* Chat Screen */
 .status {
     padding: 10px;
     text-align: center;
@@ -184,7 +182,6 @@ body {
     color: #666;
 }
 
-/* Scrollbar */
 .messages::-webkit-scrollbar {
     width: 6px;
 }
