@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat UDP + WebSocket</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Pantalla de Login -->
+    <div id="login-container" class="container">
+        <div class="login-box">
+            <h2>👋 Bienvenido al Chat</h2>
+            <p>Ingresa tu nombre para comenzar</p>
+            <input type="text" id="username-input" placeholder="Tu nombre (máx 20 caracteres)" maxlength="20">
+            <button id="login-btn">Entrar al Chat</button>
+        </div>
+    </div>
+
+    <!-- Pantalla de Chat -->
+    <div id="chat-container" class="container" style="display: none;">
+        <div id="connection-status" class="status">Conectando...</div>
+        
+        <div class="header">
+            <h3>💬 Chat Global</h3>
+            <div class="user-info">Usuario: <span id="current-user">-</span></div>
+        </div>
+        
+        <div class="users-panel">
+            <strong>👥 Usuarios conectados:</strong>
+            <div id="users-list">Cargando...</div>
+        </div>
+        
+        <div id="messages" class="messages"></div>
+        
+        <div class="input-container">
+            <input type="text" id="msg-input" placeholder="Escribe un mensaje..." autocomplete="off">
+            <button id="send-btn">Enviar</button>
+        </div>
+        
+        <div class="help">
+            <small>💡 Usa <code>@usuario mensaje</code> para mensajes privados</small>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
