@@ -20,6 +20,10 @@ WS_PORT = 8765
 ws_clients = set()
 ws_clients_lock = threading.Lock()
 
+# Diccionario para asociar websockets con nombres de usuario
+ws_usernames = {}
+ws_usernames_lock = threading.Lock()
+
 message_queue = Queue()
 
 # ---------------- Funciones ----------------
@@ -87,6 +91,11 @@ def check_inactive_clients(loop):
         
         if inactive_users:
             remove_disconnected_users(inactive_users)
+            
+            # Actualizar lista de usuarios
+            with clients_udp_lock, ws_usernames_lock:
+                user_list = "USERS:" + ",".join(list(clients_udp.keys()) + list(ws_usernames.values()))
+                asyncio.run_coroutine_threadsafe(broadcast_ws(user_list), loop)
 
 # ---------------- UDP Listener ----------------
 def udp_listener(loop):
