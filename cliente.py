@@ -4,18 +4,18 @@ import webbrowser
 import os
 import time
 
-# Cambia localhost por la IP de la máquina donde se ejecuta el servidor
-# Por ejemplo: ("192.168.1.5", 10000)
+#IP DEL DISPOSITIVO QUE SE UTILIZA COMO SERVIDOR
+#EN ESTE CASO LAPTOP DE ISMAEL
 UDP_SERVER = ("192.168.43.203", 10000)
 
-# Establecer un nombre de usuario predeterminado para la consola
+#NOMBRE DE USUARIO PREDETERMINADO PARA LA CONSOLA
 username = "CMD"
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-sock.settimeout(1.0)  # Timeout para recepción
+sock.settimeout(1.0)
 
+#ABRE EL LA WEB
 def open_browser():
-    """Abrir la web del chat automáticamente"""
     html_file = os.path.join('web', 'index.html')
     if os.path.exists(html_file):
         webbrowser.open(f'file:///{os.path.abspath(html_file)}')
@@ -23,8 +23,8 @@ def open_browser():
     else:
         print("⚠️ No se encontró index.html. Abre manualmente el archivo.")
 
+#ENVIA EL REGISTRO DEL USUARIO
 def send_user_registration():
-    """Envía registro de usuario"""
     global username
     try:
         sock.sendto(f"USER:{username}".encode("utf-8"), UDP_SERVER)
@@ -33,8 +33,8 @@ def send_user_registration():
         print(f"Error de conexión: {e}")
         return False
 
+#IENVIA EL HEARTBEAT PARA MANTENER Y VER EL ESTADO DE LA CONEXIÓN
 def send_heartbeat():
-    """Envía señales periódicas para mantener la conexión activa"""
     global username
     while True:
         try:
@@ -42,7 +42,7 @@ def send_heartbeat():
             time.sleep(60)
         except Exception as e:
             print(f"Error en heartbeat: {e}")
-            time.sleep(5)  # Esperar antes de reintentar
+            time.sleep(5)
 
 def listen_udp():
     users_list = []
@@ -53,11 +53,9 @@ def listen_udp():
         try:
             data, addr = sock.recvfrom(4096)
             message = data.decode("utf-8")
-            
-            # Reiniciar contador de reconexión al recibir mensajes
             reconnect_attempts = 0
             
-            # Procesar lista de usuarios
+            #LISTA DE USUARIOS
             if message.startswith("USERS:"):
                 users = message[6:].split(",")
                 if users != users_list:
@@ -67,7 +65,6 @@ def listen_udp():
                 print(f"\r{message}\n> ", end="", flush=True)
                 
         except socket.timeout:
-            # Timeout normal, continuar
             continue
         except ConnectionResetError:
             print("\r⚠️ Conexión reiniciada por el servidor. Reintentando...")
@@ -76,11 +73,11 @@ def listen_udp():
             print(f"\r⚠️ Error UDP: {e}")
             reconnect_attempts += 1
             
-        # Intentar reconectar si hay errores
+        #RECONEXIÓN EN CASO DE ERROR.
         if reconnect_attempts > 0:
             if reconnect_attempts <= max_reconnect_attempts:
                 print(f"\rIntentando reconectar ({reconnect_attempts}/{max_reconnect_attempts})...")
-                time.sleep(2)  # Esperar antes de reintentar
+                time.sleep(2)
                 if send_user_registration():
                     print("\r✅ Reconectado al servidor")
                     reconnect_attempts = 0
@@ -93,23 +90,23 @@ def main():
     print(f"Conectado como: {username} (predeterminado)")
     print("Abriendo interfaz web...")
     
-    # Registrar el usuario predeterminado
+    #REGISTRO DE USUARIOS
     if send_user_registration():
         print(f"✅ Registrado en el servidor como '{username}'")
     else:
         print("❌ No se pudo conectar al servidor")
         return
     
-    # Abrir web
+    #ABRE WEB
     threading.Thread(target=open_browser, daemon=True).start()
 
-    # Iniciar escucha UDP
+    #INICIA EL HILO DE UDP
     threading.Thread(target=listen_udp, daemon=True).start()
     
-    # Iniciar heartbeat
+    #INICIA EL HILI DE HEARTBREAT PARA CORROBORAR EL ESTADO
     threading.Thread(target=send_heartbeat, daemon=True).start()
 
-    # Ciclo de envío de mensajes
+    #CICLO DE MENSAJES
     try:
         while True:
             msg = input("> ").strip()
