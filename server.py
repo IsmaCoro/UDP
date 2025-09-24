@@ -5,28 +5,28 @@ import websockets
 from queue import Queue
 import time
 
-# ------------------- UDP -------------------
+#UDP
 UDP_HOST = "0.0.0.0"
 UDP_PORT = 10000
 udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 udp_sock.bind((UDP_HOST, UDP_PORT))
 
 clients_udp = {}
-clients_last_active = {}  # Registro de última actividad
+clients_last_active = {}
 clients_udp_lock = threading.Lock()
 
-# ---------------- WebSocket ----------------
+#WEBSOCKET
 WS_PORT = 8765
 ws_clients = set()
 ws_clients_lock = threading.Lock()
 
-# Diccionario para asociar websockets con nombres de usuario
+#DICCIONARIO PARA ASOCIAL LOS WEBSOCKETS CON LOS USUARIOS
 ws_usernames = {}
 ws_usernames_lock = threading.Lock()
 
 message_queue = Queue()
 
-# ---------------- Funciones ----------------
+#FUNCIONES
 def get_username_by_addr(addr):
     with clients_udp_lock:
         for username, client_addr in clients_udp.items():
@@ -61,13 +61,13 @@ def broadcast_udp(message):
     if disconnected_users:
         remove_disconnected_users(disconnected_users)
 
+#ENVIA MENSAJE A UDP Y WEBSOCKET
 async def process_message(message):
-    """Envia mensaje a UDP y WebSocket"""
     broadcast_udp(message)
     await broadcast_ws(message)
 
+#ELIMINA USUARIOS DESCONECTADOS Y NOTIFICA
 def remove_disconnected_users(usernames):
-    """Elimina usuarios desconectados y notifica"""
     with clients_udp_lock:
         for username in usernames:
             if username in clients_udp:
@@ -76,28 +76,26 @@ def remove_disconnected_users(usernames):
                     del clients_last_active[username]
                 asyncio.create_task(process_message(f"SYSTEM: {username} se ha desconectado"))
 
+#VERIFICA LOS USUARIO INACTIVOS PERIODICAMENTE
 def check_inactive_clients(loop):
-    """Verifica clientes inactivos periódicamente"""
     while True:
-        time.sleep(30)  # Verificar cada 30 segundos
+        time.sleep(30)
         current_time = time.time()
         inactive_users = []
         
         with clients_udp_lock:
             for username, last_active in list(clients_last_active.items()):
-                # Si no hay actividad en 2 minutos, considerar desconectado
                 if current_time - last_active > 120:  
                     inactive_users.append(username)
         
         if inactive_users:
             remove_disconnected_users(inactive_users)
             
-            # Actualizar lista de usuarios
             with clients_udp_lock, ws_usernames_lock:
                 user_list = "USERS:" + ",".join(list(clients_udp.keys()) + list(ws_usernames.values()))
                 asyncio.run_coroutine_threadsafe(broadcast_ws(user_list), loop)
 
-# ---------------- UDP Listener ----------------
+#LISTA
 def udp_listener(loop):
     while True:
         try:
@@ -106,7 +104,6 @@ def udp_listener(loop):
             if not msg or len(msg) > 1000:
                 continue
 
-            # Actualizar tiempo de actividad
             username = get_username_by_addr(addr)
             if username:
                 with clients_udp_lock:
@@ -120,7 +117,6 @@ def udp_listener(loop):
                         clients_last_active[username] = time.time()
                     asyncio.run_coroutine_threadsafe(process_message(f"SYSTEM: {username} se ha conectado"), loop)
                     
-                    # Enviar lista de usuarios conectados
                     user_list = "USERS:" + ",".join(clients_udp.keys())
                     udp_sock.sendto(user_list.encode("utf-8"), addr)
 
@@ -134,11 +130,9 @@ def udp_listener(loop):
                             sender = get_username_by_addr(addr) or "Anónimo"
                             private_msg = f"[Privado de {sender}] {text}"
                             udp_sock.sendto(private_msg.encode("utf-8"), clients_udp[target_user])
-                            # Confirmar al remitente
                             confirm_msg = f"[Privado para {target_user}] {text}"
                             udp_sock.sendto(confirm_msg.encode("utf-8"), addr)
             elif msg.lower() == "/users":
-                # Comando para solicitar lista de usuarios
                 with clients_udp_lock:
                     user_list = "USERS:" + ",".join(clients_udp.keys())
                     udp_sock.sendto(user_list.encode("utf-8"), addr)
@@ -150,14 +144,13 @@ def udp_listener(loop):
         except Exception as e:
             print(f"Error UDP: {e}")
 
-# ---------------- WebSocket Handler ----------------
+#GESTIÓN DE LA CONEXIÓN DEL WEBSOCKET
 async def ws_handler(websocket):
     with ws_clients_lock:
         ws_clients.add(websocket)
     try:
         await websocket.send("SYSTEM: Conectado al chat WebSocket")
         
-        # Enviar lista inicial de usuarios (UDP + Web)
         with clients_udp_lock, ws_usernames_lock:
             user_list = "USERS:" + ",".join(list(clients_udp.keys()) + list(ws_usernames.values()))
             await websocket.send(user_list)
@@ -165,20 +158,17 @@ async def ws_handler(websocket):
         async for msg in websocket:
             if msg and len(msg) <= 1000:
                 if msg.startswith("/name "):
-                    # Manejo de registro de nombre desde web
                     web_username = msg[6:].strip()
                     if web_username and ':' not in web_username and len(web_username) <= 20:
                         with ws_usernames_lock:
-                            ws_usernames[websocket] = web_username  # 🔹 Guardar username del cliente web
+                            ws_usernames[websocket] = web_username 
 
                         await process_message(f"SYSTEM: {web_username} se ha conectado desde web")
 
-                        # Actualizar lista de usuarios (UDP + Web)
                         with clients_udp_lock, ws_usernames_lock:
                             user_list = "USERS:" + ",".join(list(clients_udp.keys()) + list(ws_usernames.values()))
                             await broadcast_ws(user_list)
                 else:
-                    # 🔹 Usar el nombre guardado o "Web" si no está definido
                     sender = ws_usernames.get(websocket, "Web")
                     await process_message(f"[{sender}]: {msg}")
     finally:
@@ -189,24 +179,23 @@ async def ws_handler(websocket):
                 username = ws_usernames.pop(websocket)
                 asyncio.create_task(process_message(f"SYSTEM: {username} se ha desconectado"))
 
-        # 🔹 Al desconectarse, actualizar la lista de usuarios para los demás
         with clients_udp_lock, ws_usernames_lock:
             user_list = "USERS:" + ",".join(list(clients_udp.keys()) + list(ws_usernames.values()))
             asyncio.create_task(broadcast_ws(user_list))
 
 
-# ---------------- Main ----------------
+#MENU
 async def main():
-    # Iniciar UDP en hilo
+    #INICIALIZA EL UDP
     loop = asyncio.get_running_loop()
     threading.Thread(target=udp_listener, args=(loop,), daemon=True).start()
     
-    # Iniciar verificador de clientes inactivos
+    #INICIA LA VERIFICACIÓN DE LOS USUARIOS ACTIVOS
     threading.Thread(target=check_inactive_clients, args=(loop,), daemon=True).start()
     
     print(f"✅ UDP escuchando en {UDP_HOST}:{UDP_PORT}")
 
-    # Iniciar WebSocket
+    #INICIA EL WEBSOCKET
     server = await websockets.serve(ws_handler, "0.0.0.0", WS_PORT)
     print(f"✅ WebSocket escuchando en ws://0.0.0.0:{WS_PORT}")
 
