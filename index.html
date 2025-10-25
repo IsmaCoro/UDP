@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Web Multicast</title>
+    <style>
+        /* Mismo CSS de la maqueta anterior */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body, html { height: 100%; font-family: Arial, sans-serif; background-color: #f0f2f5; }
+        #chat-container { display: flex; flex-direction: column; height: 100vh; width: 100%; max-width: 800px; margin: 0 auto; background-color: #ffffff; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }
+        #chat-window { flex-grow: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; }
+        .message { max-width: 70%; padding: 10px 15px; border-radius: 18px; margin-bottom: 10px; line-break: anywhere; }
+        .message .sender { font-weight: bold; font-size: 0.8em; margin-bottom: 3px; color: #333; }
+        .message.other { background-color: #e4e6eb; color: #050505; align-self: flex-start; }
+        .message.mine { background-color: #0084ff; color: white; align-self: flex-end; }
+        .message.mine .sender { color: #f0f0f0; }
+        /* Mensaje del sistema (unirse/irse) */
+        .message.system { align-self: center; background-color: #f5f5f5; color: #888; font-size: 0.9em; font-style: italic; }
+        #message-form { display: flex; padding: 10px; border-top: 1px solid #ddd; background-color: #f9f9f9; }
+        #message-input { flex-grow: 1; border: 1px solid #ccc; border-radius: 20px; padding: 10px 15px; font-size: 16px; margin-right: 10px; }
+        #send-button { padding: 10px 20px; background-color: #0084ff; color: white; border: none; border-radius: 20px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        #send-button:hover { background-color: #0073e0; }
+    </style>
+</head>
+<body>
+
+    <div id="chat-container">
+        <div id="chat-window">
+            </div>
+
+        <form id="message-form">
+            <input type="text" id="message-input" placeholder="Escribe un mensaje..." autocomplete="off">
+            <button type="submit" id="send-button">Enviar</button>
+        </form>
+    </div>
+
+    <script>
+        // --- 1. Obtener elementos del DOM ---
+        const chatWindow = document.getElementById('chat-window');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+
+        // --- 2. Pedir nombre de usuario ---
+        // (Guardamos en localStorage para no preguntar cada vez)
+        let nickname = localStorage.getItem('chat_nickname');
+        if (!nickname) {
+            nickname = prompt("Por favor, ingresa tu nombre de usuario:") || "UsuarioAnónimo";
+            localStorage.setItem('chat_nickname', nickname);
+        }
+
+        // --- 3. Conectarse al WebSocket ---
+        // El script JS se conecta al "puente" Python (chat_bridge_server.py)
+        // que debe estar corriendo en la MISMA máquina.
+        const socket = new WebSocket('ws://192.168.1.182:8080');
+
+        // --- 4. Definir qué hacer con los mensajes ---
+
+        // Función para mostrar un mensaje en la pantalla
+        function displayMessage(fullMessage) {
+            const [sender, ...msgParts] = fullMessage.split(': ');
+            const messageText = msgParts.join(': ');
+
+            const messageEl = document.createElement('div');
+            messageEl.classList.add('message');
+
+            // Determinar si el mensaje es "mío" o de "otro"
+            if (sender === nickname) {
+                messageEl.classList.add('mine');
+            } else if (sender === 'Sistema') {
+                messageEl.classList.add('system');
+            } else {
+                messageEl.classList.add('other');
+            }
+
+            // Añadir el nombre del remitente (si no es del sistema)
+            if (sender !== 'Sistema') {
+                const senderEl = document.createElement('div');
+                senderEl.classList.add('sender');
+                senderEl.textContent = sender;
+                messageEl.appendChild(senderEl);
+            }
+            
+            // Añadir el texto del mensaje
+            const textEl = document.createElement('div');
+            textEl.textContent = messageText;
+            messageEl.appendChild(textEl);
+            
+            // Añadir el mensaje completo al chat
+            chatWindow.appendChild(messageEl);
+
+            // Hacer scroll hasta el final
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+
+        // --- 5. Manejar eventos del WebSocket ---
+
+        // Cuando la conexión se abre
+        socket.onopen = (event) => {
+            console.log("Conectado al servidor WebSocket.");
+            const msg = `Sistema: ${nickname} se ha unido al chat.`;
+            displayMessage(msg); // Muestra localmente
+            socket.send(msg);   // Envía a todos los demás
+        };
+
+        // Cuando se recibe un mensaje DEL SERVIDOR (o sea, de multicast)
+        socket.onmessage = (event) => {
+            const message = event.data;
+            console.log("Mensaje recibido:", message);
+            displayMessage(message);
+        };
+
+        // Cuando la conexión se cierra
+        socket.onclose = (event) => {
+            console.log("Desconectado del servidor WebSocket.");
+            displayMessage(`Sistema: Te has desconectado. Intenta recargar la página.`);
+        };
+
+        // Cuando hay un error
+        socket.onerror = (error) => {
+            console.error("Error de WebSocket:", error);
+            displayMessage(`Sistema: Error de conexión. Asegúrate de que 'chat_bridge_server.py' esté corriendo.`);
+        };
+
+
+        // --- 6. Manejar el envío de mensajes (del formulario) ---
+        messageForm.addEventListener('submit', (event) => {
+            event.preventDefault(); // Evitar que la página se recargue
+
+            const messageText = messageInput.value;
+            if (!messageText) {
+                return; // No enviar mensajes vacíos
+            }
+
+            // Formatear el mensaje
+            const fullMessage = `${nickname}: ${messageText}`;
+
+            // Enviar el mensaje al servidor WebSocket
+            // El servidor (puente) lo recibirá y lo enviará a Multicast
+            socket.send(fullMessage);
+
+            // Limpiar el campo de entrada
+            messageInput.value = '';
+        });
+
+    </script>
+</body>
+</html>
